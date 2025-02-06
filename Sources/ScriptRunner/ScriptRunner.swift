@@ -12,41 +12,64 @@ import Foundation
 #error("ScriptRunner doesn't support Swift versions below 5.5.")
 #endif
 
-/// Current ScriptRunner version Release 0.0.1. Necessary since SPM doesn't use dynamic libraries. Plus this will be more accurate.
-public let version = "0.0.1"
+/// Current ScriptRunner version Release 0.0.2. Necessary since SPM doesn't use dynamic libraries. Plus this will be more accurate.
+public let version = "0.0.2"
 
 #if os(macOS)
 
+@available(macOS 10.15, *)
 public enum ScriptError: LocalizedError {
+    case runBashFailed(Error)
+    case outputInvalid
     case initAppleScriptFailed
     case executeAppleScriptFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case .initAppleScriptFailed:
-            return "init AppleScript failed"
-        case .executeAppleScriptFailed(let reason):
-            return "execute AppleScript failed: \(reason)"
+            case .runBashFailed(let error):
+                return "run bash failed: \(error)"
+            case .outputInvalid:
+                return "output invalid"
+            case .initAppleScriptFailed:
+                return "init AppleScript failed"
+            case .executeAppleScriptFailed(let reason):
+                return "execute AppleScript failed: \(reason)"
         }
     }
 }
 
-open class ScriptRunner {
+@available(macOS 10.15, *)
+open class ScriptRunner: @unchecked Sendable {
     public init() {}
 
+    /// Run command with bash
+    /// - Parameters:
+    ///   - path: path to run
+    ///   - command: command
+    /// - Returns: output string
     @discardableResult
-    public func runBash(path: String = "/bin/bash", command: [String]) -> String? {
+    public func runBash(path: String = "/bin/bash", command: [String]) throws -> String? {
         let process = Process()
-        process.launchPath = path
+        process.executableURL = URL(fileURLWithPath: path)
         process.arguments = command
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.launch()
+        do {
+            try process.run()
+        } catch {
+            throw ScriptError.runBashFailed(error)
+        }
         process.waitUntilExit()
         let fileData = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: fileData, encoding: String.Encoding.utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        guard let outputStr = String(data: fileData, encoding: .utf8) else {
+            throw ScriptError.outputInvalid
+        }
+        return outputStr.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Run script with root permission
+    /// - Parameter script: script string
+    /// Throws: ScriptError
     public func runScriptWithRootPermission(script: String) throws {
         let tmpPath = FileManager.default.temporaryDirectory.appendingPathComponent(NSUUID().uuidString).appendingPathExtension("sh")
         try script.write(to: tmpPath, atomically: true, encoding: .utf8)

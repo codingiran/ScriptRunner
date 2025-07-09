@@ -8,17 +8,17 @@
 import Foundation
 
 // Enforce minimum Swift version for all platforms and build systems.
-#if swift(<5.5)
-#error("ScriptRunner doesn't support Swift versions below 5.5.")
+#if swift(<5.10)
+#error("ScriptRunner doesn't support Swift versions below 5.10.")
 #endif
 
-/// Current ScriptRunner version Release 0.0.2. Necessary since SPM doesn't use dynamic libraries. Plus this will be more accurate.
-public let version = "0.0.2"
+/// Current ScriptRunner version Release 0.1.0. Necessary since SPM doesn't use dynamic libraries. Plus this will be more accurate.
+public let version = "0.1.0"
 
 #if os(macOS)
 
 @available(macOS 10.15, *)
-public enum ScriptError: LocalizedError {
+public enum ScriptError: LocalizedError, Sendable {
     case runBashFailed(Error)
     case outputInvalid
     case initAppleScriptFailed
@@ -27,7 +27,7 @@ public enum ScriptError: LocalizedError {
     public var errorDescription: String? {
         switch self {
             case .runBashFailed(let error):
-                return "run bash failed: \(error)"
+                return "run bash failed: \(error.localizedDescription)"
             case .outputInvalid:
                 return "output invalid"
             case .initAppleScriptFailed:
